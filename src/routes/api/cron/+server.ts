@@ -2,6 +2,8 @@ import { GoogleGenAI } from '@google/genai';
 import { redis } from '$lib/server/redis';
 import { GOOGLE_API_KEY, CRON_SECRET, KV_REST_API_URL, KV_REST_API_TOKEN } from '$env/static/private';
 
+const MODEL_ID = 'gemini-2.5-flash';
+
 const DAILY_PROMPT =
 	'Summarize the most important AI and tech news from the last 24 hours in a concise briefing. Use clear headings and short sections suitable for a single-page daily update.';
 
@@ -28,7 +30,7 @@ export async function GET({ request }: { request: Request }) {
 
 	try {
 		const result = await genAI.models.generateContent({
-			model: 'gemini-3.0-flash-preview',
+			model: MODEL_ID,
 			contents: [
 				{
 					role: 'user',
@@ -69,7 +71,7 @@ export async function GET({ request }: { request: Request }) {
 			sources,
 			metadata: {
 				generated_at: now,
-				model: 'gemini-2.0-flash'
+				model: MODEL_ID
 			},
 			updated_at: now
 		};
