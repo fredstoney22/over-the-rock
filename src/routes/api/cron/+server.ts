@@ -38,7 +38,7 @@ export async function GET({ request }: { request: Request }) {
 				}
 			]
 		});
-		const candidate = result.response?.candidates?.[0];
+		const candidate = (result as any).response?.candidates?.[0] ?? (result as any).candidates?.[0];
 		const textPart =
 			candidate?.content?.parts?.find((p: any) => typeof p.text === 'string')?.text ?? null;
 
