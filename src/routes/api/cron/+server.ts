@@ -49,12 +49,14 @@ export async function GET({ request }: { request: Request }) {
 
 		const text = textPart;
 
-		// Try to pull structured source information if available
+		// Try to pull structured source information if available, but be defensive
+		const base = (result as any).response ?? result;
+		const firstCandidate = base?.candidates?.[0];
+
 		const grounding =
-			// @ts-expect-error groundingMetadata may not be typed in the SDK yet
-			result.response.groundingMetadata ??
-			// @ts-expect-error searchEntryPoint may exist depending on SDK version
-			result.response.candidates?.[0]?.groundingMetadata;
+			firstCandidate?.groundingMetadata ??
+			firstCandidate?.grounding_attribution ??
+			null;
 
 		const rawSources =
 			grounding?.groundingChunks ??
