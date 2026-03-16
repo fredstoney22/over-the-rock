@@ -69,7 +69,7 @@ export async function GET({ request }: { request: Request }) {
 			sources,
 			metadata: {
 				generated_at: now,
-				model: 'gemini-3.0-flash-preview'
+				model: 'gemini-2.0-flash'
 			},
 			updated_at: now
 		};
