@@ -28,7 +28,7 @@ export async function GET({ request }: { request: Request }) {
 
 	try {
 		const result = await genAI.models.generateContent({
-			model: 'gemini-2.0-flash-001',
+			model: 'gemini-3.0-flash-preview',
 			contents: [
 				{
 					role: 'user',
@@ -69,7 +69,7 @@ export async function GET({ request }: { request: Request }) {
 			sources,
 			metadata: {
 				generated_at: now,
-				model: 'gemini-2.0-flash-001'
+				model: 'gemini-3.0-flash-preview'
 			},
 			updated_at: now
 		};
