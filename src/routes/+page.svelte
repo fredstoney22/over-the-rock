@@ -1,19 +1,17 @@
 <script lang="ts">
 	let { data } = $props();
-
-	const displayDate = new Date(data.updatedAt).toLocaleDateString('en-US', {
-		weekday: 'long',
-		year: 'numeric',
-		month: 'long',
-		day: 'numeric'
-	});
 </script>
 
 <main class="max-w-3xl mx-auto px-6 py-12">
 	<header class="mb-10 border-b border-gray-200 pb-6">
 		<h1 class="text-4xl font-bold text-gray-900 mb-2">Daily AI Briefing</h1>
 		<p class="text-sm text-gray-500 uppercase tracking-widest font-semibold">
-			Snapshot for {displayDate}
+			Snapshot for {new Date(data.updatedAt).toLocaleDateString('en-US', {
+				weekday: 'long',
+				year: 'numeric',
+				month: 'long',
+				day: 'numeric'
+			})}
 		</p>
 	</header>
 
