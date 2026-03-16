@@ -1,6 +1,6 @@
-import { kv } from '@vercel/kv';
 import { GoogleGenAI } from '@google/genai';
-import { GOOGLE_API_KEY, CRON_SECRET } from '$env/static/private';
+import { redis } from '$lib/server/redis';
+import { GOOGLE_API_KEY, CRON_SECRET, KV_REST_API_URL, KV_REST_API_TOKEN } from '$env/static/private';
 
 const DAILY_PROMPT =
 	'Summarize the most important AI and tech news from the last 24 hours in a concise briefing. Use clear headings and short sections suitable for a single-page daily update.';
@@ -14,6 +14,12 @@ export async function GET({ request }: { request: Request }) {
 
 	if (!GOOGLE_API_KEY) {
 		return new Response('Missing GOOGLE_API_KEY', { status: 500 });
+	}
+
+	if (!KV_REST_API_URL || !KV_REST_API_TOKEN) {
+		return new Response('KV is not configured (missing KV_REST_API_URL or KV_REST_API_TOKEN)', {
+			status: 500
+		});
 	}
 
 	const genAI = new GoogleGenAI(GOOGLE_API_KEY);
@@ -61,7 +67,7 @@ export async function GET({ request }: { request: Request }) {
 			updated_at: now
 		};
 
-		await kv.set('daily_cache', payload);
+		await redis.set('daily_cache', payload);
 
 		return new Response('Daily update complete.', { status: 200 });
 	} catch (error) {
