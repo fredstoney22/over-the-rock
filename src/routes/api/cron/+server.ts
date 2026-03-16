@@ -1,0 +1,72 @@
+import { kv } from '@vercel/kv';
+import { GoogleGenAI } from '@google/genai';
+import { GOOGLE_API_KEY, CRON_SECRET } from '$env/static/private';
+
+const DAILY_PROMPT =
+	'Summarize the most important AI and tech news from the last 24 hours in a concise briefing. Use clear headings and short sections suitable for a single-page daily update.';
+
+export async function GET({ request }: { request: Request }) {
+	const authHeader = request.headers.get('authorization');
+
+	if (authHeader !== `Bearer ${CRON_SECRET}`) {
+		return new Response('Unauthorized', { status: 401 });
+	}
+
+	if (!GOOGLE_API_KEY) {
+		return new Response('Missing GOOGLE_API_KEY', { status: 500 });
+	}
+
+	const genAI = new GoogleGenAI(GOOGLE_API_KEY);
+	const model = genAI.getGenerativeModel({
+		model: 'gemini-3-flash',
+		tools: [{ googleSearch: {} }]
+	});
+
+	try {
+		const result = await model.generateContent(DAILY_PROMPT);
+		const text = result.response.text();
+
+		// Try to pull structured source information if available
+		const grounding =
+			// @ts-expect-error groundingMetadata may not be typed in the SDK yet
+			result.response.groundingMetadata ??
+			// @ts-expect-error searchEntryPoint may exist depending on SDK version
+			result.response.candidates?.[0]?.groundingMetadata;
+
+		const rawSources =
+			grounding?.groundingChunks ??
+			grounding?.searchEntryPoint?.renderedContent ??
+			grounding?.sources ??
+			[];
+
+		const sources =
+			Array.isArray(rawSources) && rawSources.length > 0
+				? rawSources
+						.map((s: any) => ({
+							title: s.title ?? s.description ?? undefined,
+							url: s.uri ?? s.url ?? ''
+						}))
+						.filter((s: { url: string }) => s.url)
+				: [];
+
+		const now = new Date().toISOString();
+
+		const payload = {
+			content: text,
+			sources,
+			metadata: {
+				generated_at: now,
+				model: 'gemini-3-flash'
+			},
+			updated_at: now
+		};
+
+		await kv.set('daily_cache', payload);
+
+		return new Response('Daily update complete.', { status: 200 });
+	} catch (error) {
+		console.error('Cron update failed', error);
+		return new Response('Failed to generate daily content', { status: 500 });
+	}
+}
+
