@@ -4,9 +4,9 @@
 
 <main class="max-w-3xl mx-auto px-6 py-12">
 	<header class="mb-10 border-b border-gray-200 pb-6">
-		<h1 class="text-4xl font-bold text-gray-900 mb-2">Daily AI Briefing</h1>
+		<h1 class="text-4xl font-bold text-gray-900 mb-2">Over the Rock</h1>
 		<p class="text-sm text-gray-500 uppercase tracking-widest font-semibold">
-			Snapshot for {new Date(data.updatedAt).toLocaleDateString('en-US', {
+			Daily briefing for {new Date(data.updatedAt).toLocaleDateString('en-US', {
 				weekday: 'long',
 				year: 'numeric',
 				month: 'long',
@@ -41,7 +41,7 @@
 	{/if}
 
 	<footer class="mt-20 text-center text-xs text-gray-400">
-		Generated via Gemini 3 Flash • Powered by Vercel KV
+		Over the Rock • Generated via Gemini 3 Flash • Powered by Vercel KV
 	</footer>
 </main>
 
