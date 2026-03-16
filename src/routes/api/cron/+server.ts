@@ -22,14 +22,21 @@ export async function GET({ request }: { request: Request }) {
 		});
 	}
 
-	const genAI = new GoogleGenAI(GOOGLE_API_KEY);
-	const model = genAI.getGenerativeModel({
-		model: 'gemini-3-flash',
-		tools: [{ googleSearch: {} }]
+	const genAI = new GoogleGenAI({
+		apiKey: GOOGLE_API_KEY
 	});
 
 	try {
-		const result = await model.generateContent(DAILY_PROMPT);
+		const result = await genAI.models.generateContent({
+			model: 'gemini-3-flash',
+			contents: [
+				{
+					role: 'user',
+					parts: [{ text: DAILY_PROMPT }]
+				}
+			]
+		});
+
 		const text = result.response.text();
 
 		// Try to pull structured source information if available
