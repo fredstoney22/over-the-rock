@@ -38,8 +38,16 @@ export async function GET({ request }: { request: Request }) {
 				}
 			]
 		});
+		const candidate = result.response?.candidates?.[0];
+		const textPart =
+			candidate?.content?.parts?.find((p: any) => typeof p.text === 'string')?.text ?? null;
 
-		const text = result.response.text();
+		if (!textPart) {
+			console.error('Gemini response did not contain text', JSON.stringify(result, null, 2));
+			return new Response('Gemini response did not contain text', { status: 502 });
+		}
+
+		const text = textPart;
 
 		// Try to pull structured source information if available
 		const grounding =
