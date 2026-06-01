@@ -1,0 +1,84 @@
+---
+description: Verified execution standard for this project. Apply when making any code change to routes, components, API endpoints, Redis logic, or Gemini integration.
+alwaysApply: true
+---
+
+# Agent Autonomy: Verified Execution
+
+**Core Directive:** No code change is complete until it has been verified. Use available tools to prove the change works as intended before handing back control to the user.
+
+---
+
+## Stack Reference
+
+This is a minimal **SvelteKit 2 / Svelte 5 (Runes)** app deployed on **Vercel**.
+
+| Layer | Detail |
+|---|---|
+| Rendering | Fully SSR — no client-side fetching. All data flows through `load()` in `+page.server.ts` |
+| Database | **Upstash Redis** (HTTP client via `@upstash/redis`). Single key: `daily_cache` |
+| AI | **Gemini 2.5 Flash** (`@google/genai`) with `googleSearch` grounding tool |
+| Cron | Vercel Cron — `GET /api/cron` at `0 0 * * *` UTC, authenticated by `Bearer CRON_SECRET` |
+| Styling | Scoped CSS-in-Svelte (no Tailwind, no CSS framework) |
+| Server-only modules | `$lib/server/redis.ts`, `$lib/server/content.ts` — never import these on the client |
+| Preview route | `/preview` — dev-only; throws 404 in production; used to test Gemini output and layout |
+
+---
+
+## 1. Mandatory Post-Change Verification
+
+### UI / Component changes (`ArticleView.svelte`, `+page.svelte`, `+layout.svelte`)
+- Open the browser tool and navigate to `http://localhost:5173` (or the active dev server port)
+- Take a screenshot and verify the layout renders correctly
+- Check that Svelte 5 Runes (`$props()`, `$state()`, `$derived()`) are used correctly — never use the legacy `export let` prop syntax
+- Run `npx svelte-check` and confirm zero new type or component errors
+
+### API / Cron changes (`src/routes/api/cron/+server.ts`)
+- The cron endpoint requires an `Authorization: Bearer <CRON_SECRET>` header — always include it in test `curl` calls
+- Test with: `curl -s -X GET http://localhost:5173/api/cron -H "Authorization: Bearer $CRON_SECRET"`
+- Verify the response is `{ success: true }` and that Redis was written by running a follow-up read via `src/lib/server/redis.ts` logic or a quick script
+- If calling Gemini, confirm `groundingMetadata.groundingChunks` is present in the response (indicates successful web search grounding)
+
+### Redis changes (`src/lib/server/redis.ts`, any `redis.set` / `redis.get` call)
+- After writing, read back the `daily_cache` key and log its shape: `{ content, sources, metadata, updated_at }`
+- Confirm `updated_at` is a valid ISO timestamp and `sources` is a non-empty array when grounding was active
+
+### Markdown / content pipeline changes (`src/lib/server/content.ts`)
+- Run a quick Node script or use the `/preview` route to render a sample markdown string through `markdownToSafeHtml()`
+- Verify `h1`–`h6` headings render correctly (they are explicitly allowlisted in `sanitize-html`)
+- Confirm no raw HTML tags appear as escaped text in the output
+
+### Server load changes (`src/routes/+page.server.ts`, `src/routes/preview/+page.server.ts`)
+- Reload the page and confirm the `data` object contains `{ content: string, sources: [], updatedAt }` with no undefined fields
+- Run `npx svelte-check` after any TypeScript signature change
+
+### Type / logic changes
+- Run `npx tsc --noEmit` or `npx svelte-check` before marking the task done
+- Zero new errors required — do not hand back with outstanding type regressions
+
+---
+
+## 2. Autonomous Troubleshooting
+
+If a verification step fails:
+
+1. **Do not report the failure immediately.** Check terminal output, dev server logs, and browser console errors first.
+2. **Investigate the specific layer:**
+   - 500 on `/api/cron` → check `CRON_SECRET` env var and Gemini API key validity; inspect the `test-model.mjs` script for a quick sanity check
+   - Redis read returning `null` → the `daily_cache` key may not exist yet; trigger the cron manually first
+   - Broken layout → inspect scoped CSS specificity; Svelte 5 scoped styles do not leak between components
+   - `svelte-check` errors after Runes migration → ensure no `export let` props remain; all props must use `$props()`
+3. **Attempt a fix and re-verify** using the same verification step that failed.
+4. **Report only once the fix is confirmed**, or if the failure reveals a genuine architectural ambiguity (e.g., Redis key schema change, Gemini API contract change).
+
+---
+
+## 3. Closed-Loop Communication
+
+When a task is complete, your summary must follow this format:
+
+> "I updated `[file]` to [what changed and why]."
+> "I verified by [specific action: screenshot / curl output / svelte-check result / Redis read-back]."
+> "Result: [what was confirmed — no type errors / endpoint returned `{ success: true }` / layout matches design / Redis key updated correctly]."
+
+If the dev server is not running, start it with `npm run dev` before attempting any browser or endpoint verification.
