@@ -1,11 +1,13 @@
-import { GoogleGenAI } from '@google/genai';
 import { redis } from '$lib/server/redis';
-import { GOOGLE_API_KEY, CRON_SECRET, KV_REST_API_URL, KV_REST_API_TOKEN } from '$env/static/private';
-
-const MODEL_ID = 'gemini-2.5-flash';
-
-const DAILY_PROMPT =
-	'Summarize the most important AI and tech news from the last 24 hours in a concise briefing. Use clear headings and short sections suitable for a single-page daily update.';
+import {
+	GOOGLE_API_KEY,
+	CRON_SECRET,
+	KV_REST_API_URL,
+	KV_REST_API_TOKEN
+} from '$env/static/private';
+import { env } from '$env/dynamic/private';
+import { generateGroundedContent, DEFAULT_GEMINI_MODEL } from '$lib/server/gemini';
+import { buildDailyBriefingPrompt } from '$lib/server/prompt';
 
 export async function GET({ request }: { request: Request }) {
 	const authHeader = request.headers.get('authorization');
@@ -24,64 +26,23 @@ export async function GET({ request }: { request: Request }) {
 		});
 	}
 
-	const genAI = new GoogleGenAI({
-		apiKey: GOOGLE_API_KEY
-	});
+	const modelId = env.GEMINI_MODEL_ID ?? DEFAULT_GEMINI_MODEL;
 
 	try {
-		const result = await genAI.models.generateContent({
-			model: MODEL_ID,
-			contents: [
-				{
-					role: 'user',
-					parts: [{ text: DAILY_PROMPT }]
-				}
-			]
-		});
-		const candidate = (result as any).response?.candidates?.[0] ?? (result as any).candidates?.[0];
-		const textPart =
-			candidate?.content?.parts?.find((p: any) => typeof p.text === 'string')?.text ?? null;
-
-		if (!textPart) {
-			console.error('Gemini response did not contain text', JSON.stringify(result, null, 2));
-			return new Response('Gemini response did not contain text', { status: 502 });
-		}
-
-		const text = textPart;
-
-		// Try to pull structured source information if available, but be defensive
-		const base = (result as any).response ?? result;
-		const firstCandidate = base?.candidates?.[0];
-
-		const grounding =
-			firstCandidate?.groundingMetadata ??
-			firstCandidate?.grounding_attribution ??
-			null;
-
-		const rawSources =
-			grounding?.groundingChunks ??
-			grounding?.searchEntryPoint?.renderedContent ??
-			grounding?.sources ??
-			[];
-
-		const sources =
-			Array.isArray(rawSources) && rawSources.length > 0
-				? rawSources
-						.map((s: any) => ({
-							title: s.title ?? s.description ?? undefined,
-							url: s.uri ?? s.url ?? ''
-						}))
-						.filter((s: { url: string }) => s.url)
-				: [];
-
+		const grounded = await generateGroundedContent(
+			GOOGLE_API_KEY,
+			buildDailyBriefingPrompt(),
+			modelId
+		);
 		const now = new Date().toISOString();
 
 		const payload = {
-			content: text,
-			sources,
+			content: grounded.text,
+			sources: grounded.sources,
 			metadata: {
 				generated_at: now,
-				model: MODEL_ID
+				model: grounded.model,
+				web_search_queries: grounded.webSearchQueries
 			},
 			updated_at: now
 		};
@@ -89,9 +50,8 @@ export async function GET({ request }: { request: Request }) {
 		await redis.set('daily_cache', payload);
 
 		return new Response('Daily update complete.', { status: 200 });
-	} catch (error) {
-		console.error('Cron update failed', error);
+	} catch (err) {
+		console.error('Cron update failed', err);
 		return new Response('Failed to generate daily content', { status: 500 });
 	}
 }
-

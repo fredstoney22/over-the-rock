@@ -1,7 +1,21 @@
+import 'dotenv/config';
 import { GoogleGenAI } from '@google/genai';
 
-const MODEL_ID = process.env.GEMINI_MODEL_ID || 'gemini-3.0-flash-preview';
+const MODEL_ID = process.env.GEMINI_MODEL_ID || 'gemini-2.5-flash';
 const apiKey = process.env.GOOGLE_API_KEY;
+
+function extractSources(grounding) {
+	if (!grounding?.groundingChunks) return [];
+	const seen = new Set();
+	const out = [];
+	for (const chunk of grounding.groundingChunks) {
+		const url = chunk?.web?.uri ?? chunk?.uri ?? chunk?.url ?? '';
+		if (!url || seen.has(url)) continue;
+		seen.add(url);
+		out.push({ title: chunk?.web?.title ?? chunk?.title, url });
+	}
+	return out;
+}
 
 async function main() {
 	if (!apiKey) {
@@ -11,7 +25,7 @@ async function main() {
 
 	const genAI = new GoogleGenAI({ apiKey });
 
-	console.log(`Testing model: ${MODEL_ID}`);
+	console.log(`Testing model: ${MODEL_ID} with googleSearch grounding`);
 
 	try {
 		const result = await genAI.models.generateContent({
@@ -19,20 +33,31 @@ async function main() {
 			contents: [
 				{
 					role: 'user',
-					parts: [{ text: 'Say "ok" if this model is available.' }]
+					parts: [
+						{
+							text: 'You are a news researcher. What is one major tech headline from today? Use search and be brief.'
+						}
+					]
 				}
-			]
+			],
+			config: {
+				tools: [{ googleSearch: {} }]
+			}
 		});
 
-		console.log('Model call succeeded.');
+		const candidate = result?.candidates?.[0] ?? result?.response?.candidates?.[0];
+		const text =
+			candidate?.content?.parts?.find((p) => typeof p.text === 'string')?.text ?? '(no text)';
 
-		if (result?.response && typeof result.response.text === 'function') {
-			console.log('Response text:');
-			console.log(result.response.text());
-		} else {
-			console.log('Full raw result (no .response.text() available):');
-			console.dir(result, { depth: null });
+		console.log('Model call succeeded.');
+		console.log('Response text:', text.slice(0, 500) + (text.length > 500 ? '...' : ''));
+
+		const grounding = candidate?.groundingMetadata;
+		if (grounding?.webSearchQueries?.length) {
+			console.log('webSearchQueries:', grounding.webSearchQueries);
 		}
+		const sources = extractSources(grounding);
+		console.log(`Sources (${sources.length}):`, sources.slice(0, 5));
 	} catch (err) {
 		console.error('Model test failed:');
 		console.error(err);
@@ -41,4 +66,3 @@ async function main() {
 }
 
 main();
-
