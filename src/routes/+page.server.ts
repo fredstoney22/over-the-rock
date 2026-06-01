@@ -1,7 +1,6 @@
 import { KV_REST_API_URL, KV_REST_API_TOKEN } from '$env/static/private';
 import { redis } from '$lib/server/redis';
-import { marked } from 'marked';
-import sanitizeHtml from 'sanitize-html';
+import { markdownToSafeHtml } from '$lib/server/content';
 
 type DailyCachePayload = {
 	content: string;
@@ -12,23 +11,6 @@ type DailyCachePayload = {
 	};
 	updated_at?: string;
 };
-
-function markdownToSafeHtml(markdown: string): string {
-	if (!markdown) return '';
-
-	// Render markdown (handles headings, bold, lists, etc.)
-	const rawHtml = marked(markdown, { breaks: true });
-
-	// Sanitize to prevent XSS while allowing common formatting
-	return sanitizeHtml(rawHtml, {
-		allowedTags: sanitizeHtml.defaults.allowedTags.concat(['h1', 'h2', 'h3', 'h4', 'h5', 'h6']),
-		allowedAttributes: {
-			...sanitizeHtml.defaults.allowedAttributes,
-			a: ['href', 'name', 'target', 'rel']
-		},
-		allowedSchemes: ['http', 'https', 'mailto']
-	});
-}
 
 export async function load() {
 	const kvConfigured = Boolean(KV_REST_API_URL && KV_REST_API_TOKEN);
